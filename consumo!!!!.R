@@ -1,16 +1,19 @@
 library("zoo")
-
+library("plot3D")
+library("magick")
+library("rgl")
+par(bg="white")
 #DA
 ####Daset utilizzato
 
 #campione_C <- read_xlsx("/home/jenito/Documenti/Consumo/consumo_procapiteHH.xlsx")[1,]
 #campione_Y <- read_xlsx("/home/jenito/Documenti/Consumo/gdp_procap.xlsx")[1,]
 #campione_T <- read_xlsx("/home/jenito/Documenti/Consumo/taxes.xlsx")[1,]
-(campione_CD <- read.csv("/home/jenito/Documenti/Consumo/durevoli.csv")[18:56])
-(campione_C_ND <- read.csv("/home/jenito/Documenti/Consumo/non_durevoli.csv")[18:56])
-(campione_T <- read.csv("/home/jenito/Documenti/Consumo/gettito2.csv")[2:40])
-(campione_Y <- read.csv("/home/jenito/Documenti/Consumo/gdp_ita.csv")[18:56])
-(campione_DP <- read.csv("/home/jenito/Documenti/Consumo/inflazione.csv")[14:130])
+(campione_CD <- read.csv("C:/Users/andre/Documents/GitHub/Consumo/durevoli.csv")[18:56])
+(campione_C_ND <- read.csv("C:/Users/andre/Documents/GitHub/Consumo/non_durevoli.csv")[18:56])
+(campione_T <- read.csv("C:/Users/andre/Documents/GitHub/Consumo/gettito2.csv")[2:40])
+(campione_Y <- read.csv("C:/Users/andre/Documents/GitHub/Consumo/gdp_ita.csv")[18:56])
+(campione_DP <- read.csv("C:/Users/andre/Documents/GitHub/Consumo/inflazione.csv")[14:130])
 # per sapere in che riga si trovavano i dati italiani ho messo come indice di colonna ['Country]
 # su tutti i file qui sopra e ho runnato questi comandi, cosi ho trovato la riga corrispondente
 
@@ -32,15 +35,14 @@ for(i in 1:length(campione_DP)){
     a <- c(a,campione_DP[i])
   }
 }
-infl
-
+infl <- infl+1
 campione_CD <- colSums(campione_CD)
 campione_CD
 
 campione_C_ND <- colSums(campione_C_ND)
 
 campione_C <- campione_C_ND + campione_CD
-campione_C
+campione_C <- campione_C
 
 
 
@@ -50,21 +52,25 @@ head(campione_C)
 head(campione_Y)
 #head(campione_T)
 ###Dati di interesse
-(C = as.numeric(campione_C))
-(Y = as.numeric(campione_Y))
-(Tax = as.numeric(campione_T))
+(C = as.numeric(campione_C)/infl)
+(Y = as.numeric(campione_Y)/infl)
+(Tax = as.numeric(campione_T)/infl)
 Tax = rollmean(Tax, 4)
 Tax = c(Tax, Tax[33:35])
-dati <- data.frame(reddito=c(Y), consumo=c(C), tasse=c(Tax))
+
+
+dati <- data.frame(reddito=c(Y), consumo=c(C), tasse=c(t_perc))
 head(dati)
+datimat <- as.matrix(dati)
+datimat
 Time <- 1:length(Y)
-plot(Time, Tax)
+plot(Time, Tax, col = "green", bg="white")
 t_perc <- Tax/Y
 
 logC = log(C)
 logY = log(Y)
 logT = log(Tax)
-plot(Time, logY)
+plot(Time, C, col="black")
 
 plot(Time,Y)
 plot(Time, C)
@@ -101,6 +107,42 @@ par(new=TRUE)
 plot(Dtime, DTM, type="l", col='blue')
 #abline(a=mean(DTM), b=0, col = "red")
 line(Dtime, DCM)
+eq = function(b,b1,b2,x=0,z=0){b+b1*log(x)+2*b1*log(x)+b2*log((1-z))}
+eq1 = function(b,b1,x){b+b1*log(x)}
+plot(eq(b=3.552e+04,b1=2.523e-01,b2=1.803e+00,x=Y,z=t_perc), type='l')
+par(new=T)
+plot(eq1(b=3.552e+04,b1=2.523e-01,x=Y), type="l", col="red")
+der <- function(b1,b2,x,z){b1*(1/x)-b2*(1/(1-z))}
+derr <- D(eq, "x")
+par(new=T)
+plot(der(b1=2.523e-01,b2=1.803e+00,x=Y,z=t_perc), type="l", col="green")
+scatter3D(Y, t_perc,  C,phi = 0, bty = "g", col = gg.col(100), 
+          pch = 18)
+
+
+
+plot3d(Y, t_perc, C)
+
+
+# We can indicate the axis and the rotation velocity
+play3d( spin3d( axis = c(0, 0, 1), rpm = 1), duration = 1000 )
+
+# Save like gif
+movie3d(
+  movie="3dAnimatedScatterplot", 
+  spin3d( axis = c(0, 0, 1), rpm = 50000),
+  duration = 1000, 
+  dir = "~/Desktop",
+  type = "gif", 
+  clean = TRUE
+)
+
+
+
+
+
+
+
 #LA COSTRUZIONE DEL MODELLO
 
 #I FASE: la determinazione della forma funzionale.
@@ -156,9 +198,16 @@ abline(c(Lb00,Lb11))
 
 
 ###Regressione in variazioni
-plot(Y, C)
-
-Vregr <- lm(DC~ DY)
+plot(DY, DC)
+DCC <- c(DC[[1]], DC[1:37])
+DCCC <- c(DC[1:2], DC[1:36])
+DCCCC <- c(DC[1:3], DC[1:35])
+DCC
+DCCC
+DCCCC
+DTT <- c(DT[[1]], DT[1:37])
+DYY <- c(DY[[1]], DY[1:37])
+Vregr <- lm(DC~ DY + DYY + DT + DTT + DCC+ DCCC + DCCCC)
 summary(Vregr)
 names(summary(Vregr))
 max(Vregr$residuals)
@@ -169,6 +218,8 @@ Vb11=Vregr$coefficients[2]
 
 plot(DY,DC)
 abline(c(Vb00,Vb11))
+abline(c(a=mean(DC), b=0))
+abline(c(a=0, b=mean(Y)))
 
 
 #commento dell'output, in particolare:
@@ -182,20 +233,21 @@ abline(c(Vb00,Vb11))
 #III FASE: la validazione del modello.
 ##Come trattare gli outliers?
 ##L'analisi dei residui
-residui=summary(lm(DC~DY))$residuals
+residui=summary(Vregr)$residuals
+residui <- c(residui)
 t.test(residui)
-ks.test(residui, pnorm)
+ks.test(rnorm, residui)
 qqnorm(residui)
 qqline(residui)
-??
-library(tseries)
+library("tseries")
+jarque
 jarque.bera.test(residui)
-??
-library(lmtest)
-bptest()
+
+library("lmtest")
+bptest(residui)
 ks.test(residui, pt)
 ks.test(residui, pchisq)
-
+bartlett.test(residui)
 
 #ANALISI DEI RISULTATI DEL MODELLO.
 
